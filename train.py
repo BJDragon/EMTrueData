@@ -1,15 +1,3 @@
-"""
-对于不同模型可能需要更改的内容：
-1.加载数据集过后的transform部分，需要对数据进行整形重造，位于get_loader当中；
-2.main当中的网络model与summary中的inputsize需要调整一下，以及criterion；
-3.train与val部分设置了两种类型，regression与classification两种类型，定义了回归任务与分类任务两种类型的需要计算的公式；
-4.model save模型保存的名称；
-5.结果后处理展示部分，保存结果的路径
-
-痛点：
-位置太过于分散，不便于数据监测
-作为main函数的输入投入进去运行。
-"""
 import datetime
 from datetime import datetime as dt
 import math
@@ -23,28 +11,24 @@ from train_util import *
 import optuna
 import torch.optim as optim
 from torchsummary import summary
-
 from trained_model_load import plot_model_predictions
 
 
 def transform(x, y):
     # 函数内的函数，用于对数据转换变形等操作
-    x = x.reshape(-1, 1, 5, 5) - 0.1
+    # x = x.reshape(-1, 1, 5, 5) - 0.1
     # x = x*100
-    # x = x.reshape(-1, 1, 25) - 0.1
+    x = x.reshape(-1, 1, 25) - 0.1
     return x, y
 
 
 def main(args: argparse.Namespace, trial=None):
     """
     主函数用于执行模型训练和验证。
-
     参数:
     - args: 包含训练过程所需参数的命名空间。
     - trial: Optuna试验对象，用于 hyper-parameter 调优。如果为None，则表示不进行调优。
 
-    返回:
-    - best_loss: 训练过程中得到的最优损失值。
     """
     today = datetime.date.today()
 
@@ -67,11 +51,22 @@ def main(args: argparse.Namespace, trial=None):
     input_size = tuple(train_loader.dataset.x.shape[1:])
     output_size = int(train_loader.dataset.y.shape[1])
 
-    # ECA_ResNet18 ResNet18 ResNet181D
-    model = ECA_ResNet18(output_size).to(device)
+
+
+    # # ECA_ResNet18 ResNet18 ResNet181D
+    # model = ECA_ResNet18(output_size).to(device)
+    # summary(model, input_size=input_size)
+    # model.apply(init_weights)
+    # print('model init_weights completed.')
+
+    # 数据准备和模型配置
+    num_layers = trial.suggest_int('num_layers', 3, 10)
+    hidden_units = [trial.suggest_int(f'n_units_l{i}', 32, 512, step=32) for i in range(num_layers)]
+    activation = [trial.suggest_categorical(f'activation_l{i}', ['relu', 'tanh', 'sigmoid', 'None']) for i in
+                  range(num_layers)]
+    model = DynamicFCNN(input_size=25, output_size=1, num_layers=num_layers, hidden_units=hidden_units,
+                        activation=activation).to(device)
     summary(model, input_size=input_size)
-    model.apply(init_weights)
-    print('model init_weights completed.')
 
     # CrossEntropyLoss() MSELoss()
     criterion = nn.MSELoss(reduction='sum')
@@ -160,8 +155,6 @@ def main(args: argparse.Namespace, trial=None):
     # plot_model_predictions(model, train_loader, val_loader, title='Model Predictions')
 
 
-
-
 def objective(trial):
     min_val = main(args, trial)
     return min_val
@@ -172,20 +165,14 @@ if __name__ == '__main__':
     parser.add_argument('-sd', '--seed', default=42, type=int)
     parser.add_argument('-tp', '--x_path', default='data/reproducted/coding_data.npy')
     parser.add_argument('-vp', '--y_path', default='data/reproducted/shift_value.npy')
-    parser.add_argument('-bs', '--batch_size', type=int, default=16)
+    parser.add_argument('-bs', '--batch_size', type=int, default=100)
     parser.add_argument('-ep', '--epochs', type=int, default=200)
     parser.add_argument('-ts', '--test_size', type=float, default=0.1)
     parser.add_argument('-lr', '--lr', type=float, default=0.01)
     parser.add_argument('-sf', '--save_file', default='temp_file')
     args = parser.parse_args()
 
-    # 需要优化的函数
-    # optuna_model = True
-    # optuna_model = False
-    def to_bool(num):
-        return num == 0
-    optuna_model = input('Train type optuna_model: ') == 0
-
+    optuna_model = int(input('Optimize model hyperparameters by optuna [ 0: False, 1: True]: ')) != 0
     print('---------Train type optuna_model = ' + str(optuna_model) + '----------')
     time.sleep(2)
 
@@ -199,5 +186,7 @@ if __name__ == '__main__':
         # 命令行工具 optuna-dashboard sqlite:///db.sqlite3
         print(study.best_params)
     else:
-        min = main(args)
-        print(f'min_value= {min}')
+        if input('Rename the work [ 0: False, 1: True]: ') != 0:
+            args.save_file = str(input('Rename the work:')) + '_' + dt.now().strftime("%Y-%m-%d_%H-%M-%S")
+        min_value = main(args)
+        print(f'min_value= {min_value}')
