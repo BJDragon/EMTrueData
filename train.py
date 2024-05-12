@@ -5,7 +5,7 @@ import time
 from model import *
 import torch
 from torch import nn
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import StepLR, ReduceLROnPlateau
 import os
 from train_util import *
 import optuna
@@ -16,9 +16,12 @@ from trained_model_load import plot_model_predictions
 
 def transform(x, y):
     # 函数内的函数，用于对数据转换变形等操作
-    # x = x.reshape(-1, 1, 5, 5) - 0.1
+    x = x.reshape(-1, 1, 5, 5) - 0.1
     # x = x*100
-    x = x.reshape(-1, 1, 25) - 0.1
+    # x = x.reshape(-1, 1, 25) - 0.1
+    x = np.concatenate([x[:16], x[17:31], x[32:]])
+    y = np.concatenate([y[:16], y[17:31], y[32:]])
+    # print(y)
     return x, y
 
 
@@ -51,22 +54,11 @@ def main(args: argparse.Namespace, trial=None):
     input_size = tuple(train_loader.dataset.x.shape[1:])
     output_size = int(train_loader.dataset.y.shape[1])
 
-
-
-    # # ECA_ResNet18 ResNet18 ResNet181D
-    # model = ECA_ResNet18(output_size).to(device)
-    # summary(model, input_size=input_size)
-    # model.apply(init_weights)
-    # print('model init_weights completed.')
-
-    # 数据准备和模型配置
-    num_layers = trial.suggest_int('num_layers', 3, 10)
-    hidden_units = [trial.suggest_int(f'n_units_l{i}', 32, 512, step=32) for i in range(num_layers)]
-    activation = [trial.suggest_categorical(f'activation_l{i}', ['relu', 'tanh', 'sigmoid', 'None']) for i in
-                  range(num_layers)]
-    model = DynamicFCNN(input_size=25, output_size=1, num_layers=num_layers, hidden_units=hidden_units,
-                        activation=activation).to(device)
+    # ECA_ResNet18 ResNet18 ResNet181D FCNN
+    model = ECA_ResNet18(output_size).to(device)
     summary(model, input_size=input_size)
+    model.apply(init_weights)
+    print('model init_weights completed.')
 
     # CrossEntropyLoss() MSELoss()
     criterion = nn.MSELoss(reduction='sum')
@@ -75,9 +67,14 @@ def main(args: argparse.Namespace, trial=None):
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     scheduler = StepLR(optimizer, step_size=int(0.25 * args.epochs), gamma=0.1)
+    # scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=int(0.1 * args.epochs))
+    # scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=0.001, max_lr=0.1,
+    #                                               mode='triangular2',
+    #                                               step_size_up=5, step_size_down=15)
 
     train_loss = np.array([])
     val_loss = np.array([])
+    learning_rate = np.array([])
 
     train_type = 'regression'
     best_loss = math.inf
@@ -94,7 +91,16 @@ def main(args: argparse.Namespace, trial=None):
         # 训练次数
         epochs = trial.suggest_int('epochs', 100, 1000)
 
+        # match optimizer_name:
+        #     case "Adam":
+        #         optimizer = optim.Adam(model.parameters(), lr=lr)
+        #     case "RMSprop":
+        #         optimizer = optim.RMSprop(model.parameters(), lr=lr)
+        #     case "Adagrad":
+        #         optimizer = optim.Adagrad(model.parameters(), lr=lr)
+
         optimizer = getattr(optim, optimizer_name)(model.parameters(), lr=lr)
+        scheduler = StepLR(optimizer, step_size=int(0.25 * args.epochs), gamma=0.1)
         args.epochs = epochs
 
         for epoch in range(args.epochs):
@@ -112,8 +118,11 @@ def main(args: argparse.Namespace, trial=None):
                     best_loss = goal_loss
                     best_epoch = epoch + 1
                     torch.save(model, f'{model_path}/optuna_model_{trial.number}_BEST.pt')
-
+            lr = optimizer.state_dict()['param_groups'][0]['lr']
+            print(f'Epoch: {epoch + 1}/{args.epochs}, lr: {lr}')
+            learning_rate = np.append(learning_rate, lr)
             scheduler.step()
+
 
         print(f'{trial.number} best_val_loss: {best_loss}, epoch: {best_epoch}')
         draw_regression_loss(train_loss, val_loss,
@@ -126,7 +135,9 @@ def main(args: argparse.Namespace, trial=None):
                    save_file_name=f'{modelError_path}/train_{trial.number}')
         mean_rel_error = modelError(model, val_loader, save_data=1,
                                     save_file_name=f'{modelError_path}/val_{trial.number}')
-        return mean_rel_error
+        plot_learning_rate(learning_rate, title=f'{trial.number}--Learning Rate')
+
+
     else:
         for epoch in range(args.epochs):
 
@@ -143,7 +154,10 @@ def main(args: argparse.Namespace, trial=None):
                     best_loss = goal_loss
                     best_epoch = epoch + 1
                     torch.save(model, f'{model_path}/model_{today}_best.pt')
-            scheduler.step()
+            lr = optimizer.state_dict()['param_groups'][0]['lr']
+            learning_rate = np.append(learning_rate, lr)
+            scheduler.step(val_batch_acc)
+        print(f'best_val_loss: {best_loss}, epoch: {best_epoch}')
 
         draw_regression_loss(train_loss, val_loss, save_path=f'{trials_log_path}/Training and Validation Losses.png')
         save_losses(train_loss, val_loss, f'{trials_log_path}/Training and Validation Losses.csv')
@@ -151,8 +165,10 @@ def main(args: argparse.Namespace, trial=None):
 
         modelError(model, train_loader, save_data=1, save_file_name=f'{modelError_path}/train')
         mean_rel_error = modelError(model, val_loader, save_data=1, save_file_name=f'{modelError_path}/val')
-        return mean_rel_error
-    # plot_model_predictions(model, train_loader, val_loader, title='Model Predictions')
+        plot_learning_rate(learning_rate, title='Learning Rate')
+    plot_model_predictions(model, train_loader, val_loader, title='Model Predictions')
+
+    return mean_rel_error
 
 
 def objective(trial):
@@ -162,12 +178,15 @@ def objective(trial):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-sd', '--seed', default=42, type=int)
-    parser.add_argument('-tp', '--x_path', default='data/reproducted/coding_data.npy')
-    parser.add_argument('-vp', '--y_path', default='data/reproducted/shift_value.npy')
+    parser.add_argument('-sd', '--seed', default=1, type=int)
+    parser.add_argument('-tp', '--x_path', default='data/reproducted/valid_origin_data_16plus50/coding_data.npy')
+    parser.add_argument('-vp', '--y_path', default='data/reproducted/valid_origin_data_16plus50/shift_value_manual.npy')
+    # parser.add_argument('-tp', '--x_path', default='data/reproducted/coding_data.npy')
+    # parser.add_argument('-vp', '--y_path', default='data/reproducted/shift_value.npy')
+
     parser.add_argument('-bs', '--batch_size', type=int, default=100)
     parser.add_argument('-ep', '--epochs', type=int, default=200)
-    parser.add_argument('-ts', '--test_size', type=float, default=0.1)
+    parser.add_argument('-ts', '--test_size', type=float, default=0.2)
     parser.add_argument('-lr', '--lr', type=float, default=0.01)
     parser.add_argument('-sf', '--save_file', default='temp_file')
     args = parser.parse_args()
@@ -182,11 +201,11 @@ if __name__ == '__main__':
                                     direction='minimize',
                                     storage='sqlite:///db.sqlite3',
                                     study_name=args.save_file)
-        study.optimize(objective, n_trials=5)
+        study.optimize(objective, n_trials=50)
         # 命令行工具 optuna-dashboard sqlite:///db.sqlite3
         print(study.best_params)
     else:
-        if input('Rename the work [ 0: False, 1: True]: ') != 0:
+        if int(input('Rename the work [ 0: False, 1: True]: ')) != 0:
             args.save_file = str(input('Rename the work:')) + '_' + dt.now().strftime("%Y-%m-%d_%H-%M-%S")
         min_value = main(args)
         print(f'min_value= {min_value}')

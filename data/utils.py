@@ -3,9 +3,9 @@ import pandas as pd
 from scipy.signal import find_peaks
 
 
-def load_data():
-    d30 = np.transpose(np.load('reproducted/valid_30度.npy'))
-    d90 = np.transpose(np.load('reproducted/valid_90度.npy'))
+def load_data(d30_path, d90_path):
+    d30 = np.transpose(np.load(d30_path))
+    d90 = np.transpose(np.load(d90_path))
     n = d30.shape[0]
     l = d30.shape[1]
     return d30, d90, [n, l]

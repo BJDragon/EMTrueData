@@ -76,7 +76,7 @@ def get_loader(args: argparse.Namespace):
     x, y = transform(x, y)
 
     x_train, x_val, y_train, y_val = train_test_split(
-        x, y, test_size=args.test_size, random_state=42)
+        x, y, test_size=args.test_size, random_state=args.seed)
 
     train_dataset = CustomImageDataset(x_train, y_train)
     val_dataset = CustomImageDataset(x_val, y_val)
@@ -270,3 +270,8 @@ def modelError(model, dataloader, device='cuda', save_data=False, save_file_name
     print(f'                    Mean absolute Error: {mean_abs_error: .5f}')
     print(f'                    Mean relative Error: {mean_rel_error: .3f} %')
     return mean_rel_error
+
+def plot_learning_rate(learning_rate, title):
+    plt.plot(learning_rate)
+    plt.title(title)
+    plt.show()

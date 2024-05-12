@@ -12,14 +12,13 @@ def data_split(em_data_names, valid_name, greater_than_1):
 
 
 if __name__ == '__main__':
-    data = pd.read_excel('shift_result/shift_goal_value.xlsx', header=None)
-    np.save('reproducted/shift_value.npy', data.values)
+    data = pd.read_excel('origin_data_16plus50/手动选择的偏移量.xlsx', header=None, sheet_name='Sheet1')
+    np.save('reproducted/valid_origin_data_16plus50/shift_value_manual.npy', data.values)
     print(data)
 
-
-
-    # em_data_list = ['30度.xlsx', '90度.xlsx']
-    #
+    # # 文件列表
+    # em_data_list = ['origin_data_16plus50/30_all.xlsx', 'origin_data_16plus50/90_all.xlsx']
+    # # 文件裁剪
     # data_split(em_data_list, 'valid_', 2000-1)
 
 
