@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset
 import torch
 from matplotlib import pyplot as plt
-from train import transform
+from data.load_data import read_data, data_transform
 from torch import nn
 
 
@@ -59,21 +59,17 @@ class CustomImageDataset(Dataset):
         return xi, yi
 
 
-def path_exists(path):
-    if os.path.exists(path):
-        print("路径已存在:", path)
-    else:
-        print("路径不存在:", path)
-        os.makedirs(path)
-        print("路径已创建:", path)
+def path_exists(*args):
+    for path in args:
+        if not os.path.exists(path):
+            os.makedirs(path)
+            print("路径不存在:", path, '，已创建')
 
 
 def get_loader(args: argparse.Namespace):
     # 数据加载并填装进入loader
-    x = np.load(args.x_path)
-    y = np.load(args.y_path)
-
-    x, y = transform(x, y)
+    x_o, y_o = read_data(args.x_path, args.y_path)
+    x, y = data_transform(x_o, x_o)
 
     x_train, x_val, y_train, y_val = train_test_split(
         x, y, test_size=args.test_size, random_state=args.seed)
@@ -271,7 +267,10 @@ def modelError(model, dataloader, device='cuda', save_data=False, save_file_name
     print(f'                    Mean relative Error: {mean_rel_error: .3f} %')
     return mean_rel_error
 
+
 def plot_learning_rate(learning_rate, title):
     plt.plot(learning_rate)
     plt.title(title)
+    plt.yscale('log')
+    plt.grid(True)
     plt.show()

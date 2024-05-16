@@ -111,12 +111,12 @@ class ECA_ResNet(nn.Module):
         )
 
         self.layer1 = self._make_layer(block, self.in_planes, num_blocks[0], stride=1)  # conv2_x
-        self.layer2 = self._make_layer(block, 32, num_blocks[1], stride=1)  # conv3_x
-        self.layer3 = self._make_layer(block, 64, num_blocks[2], stride=2)  # conv4_x
-        self.layer4 = self._make_layer(block, 128, num_blocks[3], stride=2)  # conv5_x
+        self.layer2 = self._make_layer(block, 64, num_blocks[1], stride=1)  # conv3_x
+        self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)  # conv4_x
+        self.layer4 = self._make_layer(block, 1024, num_blocks[3], stride=2)  # conv5_x
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.linear = nn.Linear(128 * block.expansion, num_classes)
-
+        self.linear = nn.Linear(1024, num_classes)
+        self.activation = nn.Tanh()
     def _make_layer(self, block, planes, num_blocks, stride):
         strides = [stride] + [1] * (num_blocks - 1)
         layers = []
@@ -126,7 +126,7 @@ class ECA_ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        x = F.tanh(self.in_fc(x))
+        x = self.activation(self.in_fc(x))
         x = self.layer1(x)
         x = self.layer2(x)
         x = self.layer3(x)
@@ -138,4 +138,4 @@ class ECA_ResNet(nn.Module):
 
 
 def ECA_ResNet18(num_classes):
-    return ECA_ResNet(BasicBlock, [1, 1, 1, 1], num_classes)
+    return ECA_ResNet(BasicBlock, [1, 1, 1, 2], num_classes)

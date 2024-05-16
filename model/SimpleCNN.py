@@ -6,27 +6,27 @@ class CNN_model(nn.Module):
         super(CNN_model, self).__init__()
         self.conv1 = nn.Sequential(
             nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1, bias=False),
-            # nn.BatchNorm2d(32),
+            nn.BatchNorm2d(32),
             nn.LeakyReLU(),
         )
         self.conv2 = nn.Sequential(
             nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1, bias=False),
             # nn.BatchNorm2d(64),
-            nn.LeakyReLU(),
+            nn.Sigmoid(),
         )
         self.conv3 = nn.Sequential(
             nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1, bias=False),
-            # nn.BatchNorm2d(128),
+            nn.BatchNorm2d(128),
             nn.LeakyReLU(),
         )
         self.conv4 = nn.Sequential(
             nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1, bias=False),
             # nn.BatchNorm2d(256),
-            nn.LeakyReLU(),
+            nn.Sigmoid(),
         )
         self.conv5 = nn.Sequential(
             nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=1, bias=False),
-            # nn.BatchNorm2d(512),
+            nn.BatchNorm2d(512),
             nn.LeakyReLU(),
         )
         self.conv6 = nn.Sequential(

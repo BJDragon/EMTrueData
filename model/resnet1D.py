@@ -5,16 +5,16 @@ class ResidualBlock(nn.Module):
         super(ResidualBlock, self).__init__()
         self.left = nn.Sequential(
             nn.Conv1d(in_channel, out_channel, kernel_size=3, stride=stride, padding=1, bias=False),
-            # nn.BatchNorm2d(out_channel),
+            nn.BatchNorm1d(out_channel),
             nn.LeakyReLU(inplace=True),
             nn.Conv1d(out_channel, out_channel, kernel_size=3, stride=1, padding=1, bias=False),
-            # nn.BatchNorm2d(out_channel)
+            nn.BatchNorm1d(out_channel)
         )
         self.shortcut = nn.Sequential()
         if stride != 1 or in_channel != out_channel:
             self.shortcut = nn.Sequential(
                 nn.Conv1d(in_channel, out_channel, kernel_size=1, stride=stride, bias=False),
-                # nn.BatchNorm2d(out_channel)
+                # nn.BatchNorm1d(out_channel)
             )
         self.leakyReLU = nn.LeakyReLU(inplace=True)
 
@@ -31,7 +31,7 @@ class _resnet(nn.Module):
         self.in_channel = 32
         self.conv1 = nn.Sequential(
             nn.Conv1d(1, 32, kernel_size=3, stride=1, padding=1, bias=False),
-            # nn.BatchNorm2d(32),
+            nn.BatchNorm1d(32),
             nn.LeakyReLU(),
         )
         self.layer1 = self.make_layer(ResidualBlock, 32, block_num[0], stride=1)
